@@ -24,6 +24,8 @@ make test    AWS_PROFILE=<your-sandbox-profile>
 ```
 
 > **AWS SSO note:** if your profile is SSO-based, Terraform's AWS provider can fail to read it directly with `failed to find SSO session section`. The Makefile's `eval $(aws configure export-credentials)` pattern handles this. If you're running `terraform` commands by hand, do the same export first.
+>
+> **`aws login` note:** a `default` profile created via the newer `aws login` (device-flow) command stores a `login_session` key in `~/.aws/config` instead of a standard `sso_session`. The AWS CLI reads it fine, but Terraform's AWS provider credential chain doesn't recognize that key and fails with `No valid credential sources found`. Use a classic `sso_session`-based profile for `terraform` commands instead (e.g. `AWS_PROFILE=<sso-profile> terraform plan`).
 
 Expected output of `make test`:
 
