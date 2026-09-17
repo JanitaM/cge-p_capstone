@@ -106,8 +106,8 @@ resource "aws_route_table_association" "public" {
 # GAP-01: relies on AWS-managed SSE-S3 (default since 2023) instead of
 #         SSE-KMS with a customer CMK. PHI keys are not under customer
 #         custody.
-# GAP-03: no bucket policy denying non-TLS requests
-#         (aws:SecureTransport).
+# GAP-03: bucket policy denying non-TLS requests — see
+#         uploads-bucket-policy.tf.
 # GAP-04: no versioning. PHI overwrites are unrecoverable.
 #
 # Note: AWS now defaults new buckets to SSE-S3 + full public access block.
@@ -119,8 +119,7 @@ resource "aws_s3_bucket" "uploads" {
 }
 
 # (Intentionally omitted: SSE-KMS encryption with a customer CMK,
-#  bucket policy enforcing aws:SecureTransport, versioning, lifecycle.
-#  These are the gaps the learner closes.)
+#  versioning, lifecycle. These are the gaps the learner closes.)
 
 ######################################################################
 # Lambda — the intake handler.
