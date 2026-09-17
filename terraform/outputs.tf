@@ -4,8 +4,13 @@ output "api_url" {
 }
 
 output "intake_table" {
-  value       = aws_dynamodb_table.intake.name
+  value       = module.submissions.table_id
   description = "DynamoDB table holding patient submissions."
+}
+
+output "submissions_table_arn" {
+  value       = module.submissions.table_arn
+  description = "ARN of the submissions table, for OSCAL control-implementation props."
 }
 
 output "uploads_bucket" {
