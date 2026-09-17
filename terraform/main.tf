@@ -126,7 +126,8 @@ resource "aws_s3_bucket" "uploads" {
 # GAP-05: closed — see lambda-vpc-config.tf (SG, private route table,
 #         VPC endpoints, vpc_config block below).
 # GAP-06: no reserved concurrency, no DLQ, no X-Ray.
-# GAP-07: IAM role has dynamodb:* and s3:* on the resources (over-broad).
+# GAP-07: closed — see lambda-iam-role.tf (least-privilege policy +
+#         iam-role module).
 ######################################################################
 
 data "archive_file" "handler" {
@@ -135,49 +136,9 @@ data "archive_file" "handler" {
   output_path = "${path.module}/lambda/handler.zip"
 }
 
-resource "aws_iam_role" "lambda" {
-  name = "${local.name_prefix}-lambda-${local.suffix}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Service = "lambda.amazonaws.com" }
-      Action    = "sts:AssumeRole"
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_basic" {
-  role       = aws_iam_role.lambda.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-# GAP-07: deliberately broad permissions on the workload data stores.
-resource "aws_iam_role_policy" "lambda_inline" {
-  name = "intake-data-access"
-  role = aws_iam_role.lambda.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = "dynamodb:*"
-        Resource = module.submissions.table_arn
-      },
-      {
-        Effect   = "Allow"
-        Action   = "s3:*"
-        Resource = ["${aws_s3_bucket.uploads.arn}", "${aws_s3_bucket.uploads.arn}/*"]
-      }
-    ]
-  })
-}
-
 resource "aws_lambda_function" "intake" {
   function_name    = "${local.name_prefix}-handler-${local.suffix}"
-  role             = aws_iam_role.lambda.arn
+  role             = module.lambda_role.role_arn
   handler          = "handler.handler"
   runtime          = "python3.12"
   filename         = data.archive_file.handler.output_path

@@ -25,7 +25,7 @@ resource "aws_kms_key" "cmk" {
         Sid    = "LambdaExecutionRoleUse"
         Effect = "Allow"
         Principal = {
-          AWS = aws_iam_role.lambda.arn
+          AWS = module.lambda_role.role_arn
         }
         Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
         Resource = "*"
