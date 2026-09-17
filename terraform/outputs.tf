@@ -24,3 +24,8 @@ output "vpc_id" {
 output "private_subnet_ids" {
   value = aws_subnet.private[*].id
 }
+
+output "kms_cmk_arn" {
+  value       = aws_kms_key.cmk.arn
+  description = "ARN of the shared customer-managed key (submissions table + evidence vault)."
+}
