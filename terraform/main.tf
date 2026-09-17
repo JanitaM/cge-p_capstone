@@ -97,23 +97,9 @@ resource "aws_route_table_association" "public" {
 }
 
 ######################################################################
-# DynamoDB — submissions table.
-# GAP-02: encryption uses AWS-owned default, not a CMK you control.
+# DynamoDB — submissions table. See dynamodb-submissions.tf: provisioned
+# via infra-modules' dynamodb-table module (closes GAP-02).
 ######################################################################
-
-resource "aws_dynamodb_table" "intake" {
-  name         = "${local.name_prefix}-submissions-${local.suffix}"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "submission_id"
-
-  attribute {
-    name = "submission_id"
-    type = "S"
-  }
-
-  # No server_side_encryption block. Defaults to AWS-owned key.
-  # GAP-02: capstone learner expected to add this with a customer-owned key.
-}
 
 ######################################################################
 # S3 — uploads bucket.
@@ -178,7 +164,7 @@ resource "aws_iam_role_policy" "lambda_inline" {
       {
         Effect   = "Allow"
         Action   = "dynamodb:*"
-        Resource = aws_dynamodb_table.intake.arn
+        Resource = module.submissions.table_arn
       },
       {
         Effect   = "Allow"
@@ -200,7 +186,7 @@ resource "aws_lambda_function" "intake" {
 
   environment {
     variables = {
-      INTAKE_TABLE  = aws_dynamodb_table.intake.name
+      INTAKE_TABLE  = module.submissions.table_id
       UPLOAD_BUCKET = aws_s3_bucket.uploads.id
     }
   }
