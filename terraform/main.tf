@@ -123,7 +123,8 @@ resource "aws_s3_bucket" "uploads" {
 
 ######################################################################
 # Lambda — the intake handler.
-# GAP-05: not deployed inside the VPC.
+# GAP-05: closed — see lambda-vpc-config.tf (SG, private route table,
+#         VPC endpoints, vpc_config block below).
 # GAP-06: no reserved concurrency, no DLQ, no X-Ray.
 # GAP-07: IAM role has dynamodb:* and s3:* on the resources (over-broad).
 ######################################################################
@@ -190,8 +191,10 @@ resource "aws_lambda_function" "intake" {
     }
   }
 
-  # GAP-05: no vpc_config block. Learner expected to add one referencing
-  # aws_subnet.private[*] and a hardened security group.
+  vpc_config {
+    subnet_ids         = aws_subnet.private[*].id
+    security_group_ids = [aws_security_group.lambda.id]
+  }
 }
 
 ######################################################################
