@@ -44,3 +44,13 @@ output "evidence_vault_arn" {
   value       = module.evidence_vault.bucket_arn
   description = "ARN of the evidence vault bucket."
 }
+
+output "cloudtrail_trail_arn" {
+  value       = module.audit_trail.trail_arn
+  description = "ARN of the account CloudTrail trail, for OSCAL control-implementation props."
+}
+
+output "cloudtrail_bucket_arn" {
+  value       = module.audit_trail.bucket_arn
+  description = "ARN of the CloudTrail trail's dedicated log bucket."
+}
