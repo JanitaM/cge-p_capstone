@@ -1,0 +1,180 @@
+{
+  "component-definition": {
+    "uuid": "7b29bee3-0f90-4dce-b758-098ed8b841a2",
+    "metadata": {
+      "title": "Acme Health patient intake service",
+      "last-modified": "2026-09-18T18:31:22.000+00:00",
+      "version": "0.1.0",
+      "oscal-version": "1.2.1",
+      "parties": [
+        {
+          "uuid": "383efa6d-2167-405f-b7c2-bfd1aa0e4ee7",
+          "type": "organization",
+          "name": "Acme Health"
+        }
+      ]
+    },
+    "components": [
+      {
+        "uuid": "ce6e14ec-10f5-43f0-bf1b-e82451d08640",
+        "type": "service",
+        "title": "acme-health-intake",
+        "description": "Patient intake API on AWS (API Gateway -> Lambda -> DynamoDB + S3 uploads bucket), wrapped in a Terraform GRC baseline, an OPA/Rego policy gate, and a signed-evidence pipeline.",
+        "purpose": "Accept patient intake submissions while meeting the SOC 2 criteria mapped below.",
+        "responsible-roles": [
+          {
+            "role-id": "provider",
+            "party-uuids": [
+              "383efa6d-2167-405f-b7c2-bfd1aa0e4ee7"
+            ]
+          }
+        ],
+        "links": [
+          {
+            "rel": "evidence",
+            "href": "s3://acme-health-intake-evidence-5ca11859/runs/35371787746/evidence-35371787746-7169aa7755bc50ab7ea4075b46b3693db67fb39e.tar.gz.sha256?versionId=FIG0a4PhHoC.Jpm621Q3QIv2kASIHi8s",
+            "text": "SHA-256 digest of the signed pipeline bundle (grc-gate run 35371787746, commit 7169aa7)."
+          },
+          {
+            "rel": "evidence",
+            "href": "s3://acme-health-intake-evidence-5ca11859/runs/35371787746/evidence-35371787746-7169aa7755bc50ab7ea4075b46b3693db67fb39e.tar.gz.sig.bundle?versionId=6p5qLgERnh2QrfZ1jFjgttfQS1baVpFx",
+            "text": "Cosign keyless signature bundle for the pipeline bundle (verify with cosign verify-blob)."
+          },
+          {
+            "rel": "evidence",
+            "href": "s3://acme-health-intake-evidence-5ca11859/runs/35371787746/receipt.json?versionId=zMvWcaYB1AZEyuwseB26YRDy2.q9ZvNB",
+            "text": "Upload receipt: run id, commit, vault, bundle key, bundle VersionId and SHA-256."
+          }
+        ],
+        "control-implementations": [
+          {
+            "uuid": "d39e9761-bbbc-4578-9ad9-c80b788a017a",
+            "source": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json",
+            "description": "NIST SP 800-53 Rev 5 controls satisfied (or planned) by the Acme Health intake service, each tagged with the SOC 2 Trust Services Criterion it supports.",
+            "remarks": "SOC 2 -> NIST 800-53 mapping used here (one representative control per criterion): CC6.1 -> sc-28 (encryption at rest), CC6.3 -> ac-6 (least privilege), CC6.6 -> sc-7 (boundary protection), CC6.7 -> sc-8 (transmission confidentiality), A1.2 -> cp-9 (system backup), CC7.2 -> si-4 (system monitoring). AICPA publishes no OSCAL catalog for the Trust Services Criteria, so NIST 800-53 Rev 5 is the catalog. Each pair was checked against the AICPA crosswalk 'Mapping: 2017 Trust Services Criteria to NIST 800-53' (2017 TSC with revised points of focus 2022, mapped to NIST 800-53 r5), which lists each of these controls under the corresponding criterion. That crosswalk is many-to-many: each criterion maps to further controls not selected here. Evidence objects live in an S3 Object Lock (GOVERNANCE, 90 days from 2026-09-18) vault, so they are protected until about 2026-12-17.",
+            "links": [
+              {
+                "rel": "reference",
+                "href": "https://www.aicpa-cima.com/resources/download/mapping-2017-trust-services-criteria-to-nist-800-53",
+                "text": "AICPA crosswalk: 2017 Trust Services Criteria to NIST 800-53 (r5)."
+              }
+            ],
+            "implemented-requirements": [
+              {
+                "uuid": "c79d4051-ef73-4432-b471-ebbe4649c8f9",
+                "control-id": "sc-28",
+                "description": "SOC 2 CC6.1 (GAP-01, GAP-02). Data at rest is encrypted under a customer-managed KMS key with rotation enabled: the uploads bucket (SSE-KMS), the DynamoDB submissions table, and the evidence vault all use the shared CMK. Encryption regressions are blocked at PR time by the cc61_s3_kms and cc61_dynamodb_kms Rego policies.",
+                "props": [
+                  { "name": "soc2-criterion", "value": "CC6.1" },
+                  { "name": "implementation-status", "value": "implemented" },
+                  { "name": "terraform-resource", "value": "aws_kms_key.cmk" },
+                  { "name": "terraform-resource", "value": "aws_s3_bucket_server_side_encryption_configuration.uploads" },
+                  { "name": "terraform-resource", "value": "module.submissions.aws_dynamodb_table.primary" },
+                  { "name": "terraform-resource", "value": "module.evidence_vault.aws_s3_bucket_server_side_encryption_configuration.primary" },
+                  { "name": "rego-policy", "value": "policies/cc61_s3_kms.rego" },
+                  { "name": "rego-policy", "value": "policies/cc61_dynamodb_kms.rego" },
+                  { "name": "policy-control-id", "value": "SOC2-CC6.1" }
+                ],
+                "links": [
+                  {
+                    "rel": "evidence",
+                    "href": "s3://acme-health-intake-evidence-5ca11859/runs/35371787746/evidence-35371787746-7169aa7755bc50ab7ea4075b46b3693db67fb39e.tar.gz?versionId=Jubard_jDdcAftCou.ctxRefuvTCA2wh",
+                    "text": "Signed pipeline bundle containing the terraform plan.json for the compliant baseline."
+                  }
+                ]
+              },
+              {
+                "uuid": "0a80182d-9334-4a9f-bdee-78b3aac52da0",
+                "control-id": "ac-6",
+                "description": "SOC 2 CC6.3 (GAP-07). The intake Lambda runs under a dedicated least-privilege role: its only data permissions are dynamodb:PutItem on the submissions table and s3:PutObject on the uploads bucket, replacing the starter's dynamodb:* / s3:* inline policy. Over-broad grants are blocked by the cc63_lambda_iam_least_privilege Rego policy.",
+                "props": [
+                  { "name": "soc2-criterion", "value": "CC6.3" },
+                  { "name": "implementation-status", "value": "implemented" },
+                  { "name": "terraform-resource", "value": "module.lambda_role.aws_iam_role.this" },
+                  { "name": "terraform-resource", "value": "aws_iam_policy.intake_data_access" },
+                  { "name": "rego-policy", "value": "policies/cc63_lambda_iam_least_privilege.rego" },
+                  { "name": "policy-control-id", "value": "SOC2-CC6.3" }
+                ],
+                "links": [
+                  {
+                    "rel": "evidence",
+                    "href": "s3://acme-health-intake-evidence-5ca11859/runs/35371787746/evidence-35371787746-7169aa7755bc50ab7ea4075b46b3693db67fb39e.tar.gz?versionId=Jubard_jDdcAftCou.ctxRefuvTCA2wh",
+                    "text": "Signed pipeline bundle containing the terraform plan.json for the compliant baseline."
+                  }
+                ]
+              },
+              {
+                "uuid": "70e4e3b5-f0b5-4e97-9664-1bbe37573b74",
+                "control-id": "sc-7",
+                "description": "SOC 2 CC6.6 (GAP-05). The intake Lambda runs inside the workload VPC's private subnets with a security group that allows no inbound traffic and HTTPS-only outbound, reaching AWS services through VPC endpoints (S3 and DynamoDB gateway endpoints, CloudWatch Logs interface endpoint) rather than the internet. Removing the VPC attachment is blocked by the cc66_lambda_vpc Rego policy.",
+                "props": [
+                  { "name": "soc2-criterion", "value": "CC6.6" },
+                  { "name": "implementation-status", "value": "implemented" },
+                  { "name": "terraform-resource", "value": "aws_lambda_function.intake" },
+                  { "name": "terraform-resource", "value": "aws_security_group.lambda" },
+                  { "name": "terraform-resource", "value": "aws_vpc_endpoint.s3" },
+                  { "name": "terraform-resource", "value": "aws_vpc_endpoint.dynamodb" },
+                  { "name": "terraform-resource", "value": "aws_vpc_endpoint.logs" },
+                  { "name": "rego-policy", "value": "policies/cc66_lambda_vpc.rego" },
+                  { "name": "policy-control-id", "value": "SOC2-CC6.6" }
+                ],
+                "links": [
+                  {
+                    "rel": "evidence",
+                    "href": "s3://acme-health-intake-evidence-5ca11859/runs/35371787746/evidence-35371787746-7169aa7755bc50ab7ea4075b46b3693db67fb39e.tar.gz?versionId=Jubard_jDdcAftCou.ctxRefuvTCA2wh",
+                    "text": "Signed pipeline bundle containing the terraform plan.json for the compliant baseline."
+                  }
+                ]
+              },
+              {
+                "uuid": "0f44d1a4-7441-41d8-bc8a-4297d7ce7276",
+                "control-id": "sc-8",
+                "description": "SOC 2 CC6.7 (GAP-03). The uploads bucket has a bucket policy that denies any request where aws:SecureTransport is false, so data in transit to and from the bucket must use TLS. Removing the deny is blocked by the cc67_s3_tls_deny Rego policy.",
+                "props": [
+                  { "name": "soc2-criterion", "value": "CC6.7" },
+                  { "name": "implementation-status", "value": "implemented" },
+                  { "name": "terraform-resource", "value": "aws_s3_bucket_policy.uploads" },
+                  { "name": "rego-policy", "value": "policies/cc67_s3_tls_deny.rego" },
+                  { "name": "policy-control-id", "value": "SOC2-CC6.7" }
+                ],
+                "links": [
+                  {
+                    "rel": "evidence",
+                    "href": "s3://acme-health-intake-evidence-5ca11859/runs/35371787746/evidence-35371787746-7169aa7755bc50ab7ea4075b46b3693db67fb39e.tar.gz?versionId=Jubard_jDdcAftCou.ctxRefuvTCA2wh",
+                    "text": "Signed pipeline bundle containing the terraform plan.json for the compliant baseline."
+                  }
+                ]
+              },
+              {
+                "uuid": "bb704a35-e0b8-4739-aef6-22c08f07bda9",
+                "control-id": "cp-9",
+                "description": "SOC 2 A1.2 (GAP-04). Versioning is enabled on the uploads bucket, so overwritten or deleted patient uploads remain recoverable. Fixed in Terraform only: there is deliberately no Rego policy for this gap, since a single-resource remediation has no meaningful reintroduce-the-gap failure mode to test.",
+                "props": [
+                  { "name": "soc2-criterion", "value": "A1.2" },
+                  { "name": "implementation-status", "value": "implemented" },
+                  { "name": "terraform-resource", "value": "aws_s3_bucket_versioning.uploads" }
+                ],
+                "links": [
+                  {
+                    "rel": "evidence",
+                    "href": "s3://acme-health-intake-evidence-5ca11859/runs/35371787746/evidence-35371787746-7169aa7755bc50ab7ea4075b46b3693db67fb39e.tar.gz?versionId=Jubard_jDdcAftCou.ctxRefuvTCA2wh",
+                    "text": "Signed pipeline bundle containing the terraform plan.json for the compliant baseline."
+                  }
+                ]
+              },
+              {
+                "uuid": "40041c87-3f93-4268-8c87-0f7efe722b71",
+                "control-id": "si-4",
+                "description": "SOC 2 CC7.2 (GAP-06, GAP-08). KNOWN, UNREMEDIATED GAP: this control is planned, not implemented. Nothing in this service detects, alarms on, or analyses anomalies. Missing: Lambda reserved concurrency, dead-letter queue and X-Ray tracing (GAP-06); API Gateway access logging, throttling and WAF (GAP-08); CloudWatch alarms on Lambda errors and API 5xx/throttles; and a process for reviewing alerts. The only related capability is a multi-region CloudTrail trail (module.audit_trail.aws_cloudtrail.primary) with log-file validation, which is audit logging: the raw input a monitoring control would use, not monitoring itself. Note that AWS WAF does not attach to API Gateway HTTP APIs, so closing the WAF part of GAP-08 means changing the API type or fronting it with CloudFront.",
+                "props": [
+                  { "name": "soc2-criterion", "value": "CC7.2" },
+                  { "name": "implementation-status", "value": "planned" }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
