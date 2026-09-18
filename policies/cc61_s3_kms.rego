@@ -31,9 +31,15 @@ kms_encrypted(bucket_name) if {
 	sse.type == "aws_s3_bucket_server_side_encryption_configuration"
 	resource_name(sse.address) == bucket_name
 	some rule in sse.change.after.rule
-	rule.apply_server_side_encryption_by_default.sse_algorithm == "aws:kms"
-	rule.apply_server_side_encryption_by_default.kms_master_key_id != null
-	rule.apply_server_side_encryption_by_default.kms_master_key_id != ""
+
+	# The AWS provider represents this nested block as a one-element list
+	# in plan JSON even though HCL only ever configures a single block —
+	# hand-written fixtures that model it as a bare object don't match a
+	# real `terraform show -json` plan.
+	some cfg in rule.apply_server_side_encryption_by_default
+	cfg.sse_algorithm == "aws:kms"
+	cfg.kms_master_key_id != null
+	cfg.kms_master_key_id != ""
 }
 
 resource_name(address) := name if {

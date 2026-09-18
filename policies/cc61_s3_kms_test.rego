@@ -32,8 +32,8 @@ uploads_bucket := {
 encryption_config(algorithm, kms_key_id) := {
 	"address": "aws_s3_bucket_server_side_encryption_configuration.uploads",
 	"type": "aws_s3_bucket_server_side_encryption_configuration",
-	"change": {"after": {"rule": [{"apply_server_side_encryption_by_default": {
+	"change": {"after": {"rule": [{"apply_server_side_encryption_by_default": [{
 		"sse_algorithm": algorithm,
 		"kms_master_key_id": kms_key_id,
-	}}]}},
+	}]}]}},
 }

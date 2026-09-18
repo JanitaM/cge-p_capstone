@@ -1,0 +1,163 @@
+# GRC gate pipeline (Layer 3): Plan -> Policy check -> Apply -> Sign -> Upload.
+# Plan/Policy check run on every PR; Apply/Sign/Upload run only on merge to
+# main (no manual approval gate — project-overview.md Decision #5).
+#
+# Auth is GitHub OIDC, not static AWS keys: PR runs assume the read-only
+# grc-gate-plan role, main-branch runs assume the read/write grc-gate-apply
+# role — enforced by each role's own trust condition, not by this workflow.
+name: grc-gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  TF_WORKING_DIR: terraform
+
+jobs:
+  grc-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select OIDC role for this event
+        id: role
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "role_arn=${{ vars.GRC_GATE_APPLY_ROLE_ARN }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "role_arn=${{ vars.GRC_GATE_PLAN_ROLE_ARN }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ steps.role.outputs.role_arn }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify OIDC auth
+        run: aws sts get-caller-identity
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.1
+          terraform_wrapper: false
+
+      - name: Terraform plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform init -input=false
+          terraform validate
+          terraform plan -input=false -out=tfplan -no-color | tee plan.txt
+          terraform show -json tfplan > plan.json
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ github.run_id }}
+          path: |
+            ${{ env.TF_WORKING_DIR }}/plan.json
+            ${{ env.TF_WORKING_DIR }}/plan.txt
+          retention-days: 7
+
+      - name: Install OPA + Conftest
+        run: |
+          curl -fsSL -o /usr/local/bin/opa https://openpolicyagent.org/downloads/v1.20.2/opa_linux_amd64_static
+          chmod +x /usr/local/bin/opa
+          curl -fsSL https://github.com/open-policy-agent/conftest/releases/download/v0.70.0/conftest_0.70.0_Linux_x86_64.tar.gz \
+            | tar -xz -C /usr/local/bin conftest
+
+      - name: Policy check — opa test (unit tests)
+        run: opa test ./policies
+
+      - name: Policy check — conftest (real plan)
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: conftest test --all-namespaces --policy ../policies plan.json
+
+      # main-only: no manual approval gate (Decision #5) — the Policy check
+      # above is the gate. A prior step failing here already stops the job
+      # before this runs, since no `if: always()` overrides that.
+      - name: Terraform apply
+        if: github.event_name == 'push'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Install Cosign
+        if: github.event_name == 'push'
+        uses: sigstore/cosign-installer@v4.1.2
+        with:
+          cosign-release: 'v3.1.3'
+
+      # Keyless: GitHub's own OIDC token (permissions.id-token: write, above)
+      # proves this workflow's identity to Fulcio, which issues a short-lived
+      # cert to sign with — no private key to generate, store, or rotate.
+      - name: Sign — bundle evidence + cosign keyless
+        if: github.event_name == 'push'
+        id: sign
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          cp plan.json plan.txt evidence/
+
+          BUNDLE="evidence-${{ github.run_id }}-${{ github.sha }}.tar.gz"
+          tar czf "$BUNDLE" -C evidence .
+          sha256sum "$BUNDLE" | awk '{print $1}' > "$BUNDLE.sha256"
+          cosign sign-blob --yes --bundle "$BUNDLE.sig.bundle" "$BUNDLE"
+
+          echo "bundle=$BUNDLE" >> "$GITHUB_OUTPUT"
+
+      # Uploads to the Object Lock-protected evidence vault (module.evidence_vault).
+      # A partial failure here (e.g. sign succeeded, this fails) leaves no
+      # receipt.json in the vault — treated as non-compliant until re-run,
+      # per project-overview.md's rollback/failure-handling note. No
+      # `if: always()`, deliberately: a half-uploaded bundle isn't evidence.
+      - name: Upload — signed bundle + receipt to evidence vault
+        if: github.event_name == 'push'
+        id: upload
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          VAULT: ${{ vars.EVIDENCE_VAULT }}
+          BUNDLE: ${{ steps.sign.outputs.bundle }}
+        run: |
+          set -euo pipefail
+          KEY_PREFIX="runs/${{ github.run_id }}"
+
+          aws s3 cp "$BUNDLE"              "s3://${VAULT}/${KEY_PREFIX}/${BUNDLE}"
+          aws s3 cp "${BUNDLE}.sha256"     "s3://${VAULT}/${KEY_PREFIX}/${BUNDLE}.sha256"
+          aws s3 cp "${BUNDLE}.sig.bundle" "s3://${VAULT}/${KEY_PREFIX}/${BUNDLE}.sig.bundle"
+
+          VERSION_ID=$(aws s3api head-object --bucket "$VAULT" --key "${KEY_PREFIX}/${BUNDLE}" --query VersionId --output text)
+
+          cat > receipt.json <<EOF
+          {
+            "run_id": "${{ github.run_id }}",
+            "commit": "${{ github.sha }}",
+            "vault": "${VAULT}",
+            "bundle_key": "${KEY_PREFIX}/${BUNDLE}",
+            "version_id": "${VERSION_ID}",
+            "sha256": "$(cat "${BUNDLE}.sha256")"
+          }
+          EOF
+          aws s3 cp receipt.json "s3://${VAULT}/${KEY_PREFIX}/receipt.json"
+
+      - name: Upload evidence artifact (GitHub Actions)
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: grc-evidence-${{ github.run_id }}
+          path: |
+            ${{ env.TF_WORKING_DIR }}/${{ steps.sign.outputs.bundle }}
+            ${{ env.TF_WORKING_DIR }}/${{ steps.sign.outputs.bundle }}.sha256
+            ${{ env.TF_WORKING_DIR }}/${{ steps.sign.outputs.bundle }}.sig.bundle
+            ${{ env.TF_WORKING_DIR }}/receipt.json
+          retention-days: 90

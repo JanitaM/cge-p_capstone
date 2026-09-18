@@ -54,3 +54,13 @@ output "cloudtrail_bucket_arn" {
   value       = module.audit_trail.bucket_arn
   description = "ARN of the CloudTrail trail's dedicated log bucket."
 }
+
+output "grc_gate_plan_role_arn" {
+  value       = module.grc_gate_plan_role.role_arn
+  description = "Role the grc-gate workflow assumes for read-only `terraform plan` runs (PRs)."
+}
+
+output "grc_gate_apply_role_arn" {
+  value       = module.grc_gate_apply_role.role_arn
+  description = "Role the grc-gate workflow assumes for `terraform apply` + evidence upload (main only)."
+}
