@@ -1,0 +1,32 @@
+{
+  "profile": {
+    "uuid": "5537ba93-deeb-4d3f-be5a-16c2d209b87d",
+    "metadata": {
+      "title": "Acme Health intake: SOC 2 control selection (via NIST SP 800-53 Rev 5)",
+      "last-modified": "2026-09-18T18:31:22.000+00:00",
+      "version": "0.1.0",
+      "oscal-version": "1.2.1",
+      "remarks": "Selects the NIST SP 800-53 Rev 5 controls that the SOC 2 criteria implemented (or planned) by the Acme Health intake component map to: CC6.1 -> sc-28, CC6.3 -> ac-6, CC6.6 -> sc-7, CC6.7 -> sc-8, A1.2 -> cp-9, CC7.2 -> si-4. AICPA publishes no official OSCAL catalog for the Trust Services Criteria, so NIST 800-53 Rev 5 is the catalog and the SOC 2 criterion is carried as a prop on each implemented-requirement. Each pair was checked against the AICPA crosswalk 'Mapping: 2017 Trust Services Criteria to NIST 800-53' (r5)."
+    },
+    "imports": [
+      {
+        "href": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json",
+        "include-controls": [
+          {
+            "with-ids": [
+              "sc-28",
+              "ac-6",
+              "sc-7",
+              "sc-8",
+              "cp-9",
+              "si-4"
+            ]
+          }
+        ]
+      }
+    ],
+    "merge": {
+      "as-is": true
+    }
+  }
+}

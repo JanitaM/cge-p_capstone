@@ -12,6 +12,9 @@ crash.log
 # Lambda build
 terraform/lambda/handler.zip
 
+# Trestle workspace (scripts/validate-oscal.sh uses a temp dir; this covers a hand-run `trestle init`)
+.trestle-work/
+
 # Local
 evidence/
 .DS_Store
