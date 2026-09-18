@@ -81,9 +81,13 @@ resource "aws_iam_policy" "grc_gate_plan" {
         Effect = "Allow"
         Action = [
           "ec2:Describe*",
-          "s3:GetBucket*",
-          "s3:GetObject*",
-          "s3:GetEncryptionConfiguration",
+          # s3:Get*, not s3:GetBucket*: several S3 sub-resource read calls the
+          # AWS provider makes on every refresh don't follow the GetBucket*
+          # naming convention (e.g. GetAccelerateConfiguration,
+          # GetEncryptionConfiguration have no "Bucket" in the name) — caught
+          # via a real AccessDenied in CI, not discoverable by inspection.
+          # Still read-only: no Put/Delete/List-write S3 action is included.
+          "s3:Get*",
           "s3:ListBucket",
           "s3:ListAllMyBuckets",
           "dynamodb:DescribeTable",
