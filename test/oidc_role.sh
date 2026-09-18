@@ -42,15 +42,24 @@ OIDC=$(resource "aws_iam_openid_connect_provider.github_actions")
 echo "$OIDC" | jq -e '.values.url == "token.actions.githubusercontent.com"' >/dev/null \
   || fail "OIDC provider URL is not token.actions.githubusercontent.com"
 
+# This repo has GitHub's immutable-subject-claim OIDC setting enabled, so
+# the real `sub` claim is "repo:<owner>@<owner_id>/<repo>@<repo_id>:...",
+# not the plain "repo:<owner>/<repo>:..." form — confirmed against a real
+# token in CI after a trust condition written against the plain form
+# silently never matched (AssumeRoleWithWebIdentity "Not authorized").
+GITHUB_SUBJECT="JanitaM@48458664/cge-p_capstone@1364803394"
+
 PLAN_ROLE=$(resource "module.grc_gate_plan_role.aws_iam_role.this")
 [ -n "$PLAN_ROLE" ] || fail "module.grc_gate_plan_role.aws_iam_role.this not found in plan"
-echo "$PLAN_ROLE" | jq -e '.values.assume_role_policy | fromjson | .Statement[0].Condition.StringLike["token.actions.githubusercontent.com:sub"] == "repo:JanitaM/cge-p_capstone:*"' >/dev/null \
-  || fail "plan role trust condition is not scoped to repo:JanitaM/cge-p_capstone:*"
+echo "$PLAN_ROLE" | jq -e --arg sub "repo:${GITHUB_SUBJECT}:*" \
+  '.values.assume_role_policy | fromjson | .Statement[0].Condition.StringLike["token.actions.githubusercontent.com:sub"] == $sub' >/dev/null \
+  || fail "plan role trust condition is not scoped to repo:${GITHUB_SUBJECT}:*"
 
 APPLY_ROLE=$(resource "module.grc_gate_apply_role.aws_iam_role.this")
 [ -n "$APPLY_ROLE" ] || fail "module.grc_gate_apply_role.aws_iam_role.this not found in plan"
-echo "$APPLY_ROLE" | jq -e '.values.assume_role_policy | fromjson | .Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == "repo:JanitaM/cge-p_capstone:ref:refs/heads/main"' >/dev/null \
-  || fail "apply role trust condition is not restricted to repo:JanitaM/cge-p_capstone:ref:refs/heads/main"
+echo "$APPLY_ROLE" | jq -e --arg sub "repo:${GITHUB_SUBJECT}:ref:refs/heads/main" \
+  '.values.assume_role_policy | fromjson | .Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == $sub' >/dev/null \
+  || fail "apply role trust condition is not restricted to repo:${GITHUB_SUBJECT}:ref:refs/heads/main"
 
 for addr in aws_iam_policy.grc_gate_plan aws_iam_policy.grc_gate_apply; do
   POLICY=$(resource "$addr")

@@ -18,7 +18,18 @@
 ######################################################################
 
 locals {
-  github_repo = "JanitaM/cge-p_capstone"
+  # This account/repo has GitHub's "immutable subject claim" OIDC setting
+  # enabled (confirmed via `gh api repos/JanitaM/cge-p_capstone/actions/oidc/
+  # customization/sub`: use_immutable_subject=true), so the `sub` claim on
+  # every token is "repo:<owner>@<owner_id>/<repo>@<repo_id>:...", not the
+  # plain "repo:<owner>/<repo>:..." most examples show. Confirmed against a
+  # real token via a throwaway debug step in a test PR — a trust condition
+  # written against the plain form silently never matches, producing "Not
+  # authorized to perform sts:AssumeRoleWithWebIdentity" with no indication
+  # why. IDs are stable for the life of the repo (they change only on a
+  # highly unusual event like account deletion/recreation), same durability
+  # assumption as the account-ID-keyed tfstate bucket name elsewhere here.
+  github_repo_subject = "JanitaM@48458664/cge-p_capstone@1364803394"
 }
 
 resource "aws_iam_openid_connect_provider" "github_actions" {
@@ -53,7 +64,7 @@ data "aws_iam_policy_document" "grc_gate_plan_trust" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${local.github_repo}:*"]
+      values   = ["repo:${local.github_repo_subject}:*"]
     }
   }
 }
@@ -148,7 +159,7 @@ data "aws_iam_policy_document" "grc_gate_apply_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${local.github_repo}:ref:refs/heads/main"]
+      values   = ["repo:${local.github_repo_subject}:ref:refs/heads/main"]
     }
   }
 }
