@@ -16,7 +16,8 @@ terraform/lambda/handler.zip
 .trestle-work/
 
 # Local
-evidence/
+# Pipeline's temporary bundle folder. Root evidence/ holds pulled, committed evidence.
+/terraform/evidence/
 .DS_Store
 
 context
