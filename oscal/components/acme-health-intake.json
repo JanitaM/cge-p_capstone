@@ -21,6 +21,7 @@
         "title": "acme-health-intake",
         "description": "Patient intake API on AWS (API Gateway -> Lambda -> DynamoDB + S3 uploads bucket), wrapped in a Terraform GRC baseline, an OPA/Rego policy gate, and a signed-evidence pipeline.",
         "purpose": "Accept patient intake submissions while meeting the SOC 2 criteria mapped below.",
+        "remarks": "SOC 2 -> NIST 800-53 mapping used here (one representative control per criterion): CC6.1 -> sc-28 (encryption at rest), CC6.3 -> ac-6 (least privilege), CC6.6 -> sc-7 (boundary protection), CC6.7 -> sc-8 (transmission confidentiality), A1.2 -> cp-9 (system backup), CC7.2 -> si-4 (system monitoring). AICPA publishes no OSCAL catalog for the Trust Services Criteria, so NIST 800-53 Rev 5 is the catalog. Each pair was checked against the AICPA crosswalk 'Mapping: 2017 Trust Services Criteria to NIST 800-53' (2017 TSC with revised points of focus 2022, mapped to NIST 800-53 r5), which lists each of these controls under the corresponding criterion. That crosswalk is many-to-many: each criterion maps to further controls not selected here. Evidence objects live in an S3 Object Lock (GOVERNANCE, 90 days from 2026-09-18) vault, so they are protected until about 2026-12-17.",
         "responsible-roles": [
           {
             "role-id": "provider",
@@ -51,7 +52,6 @@
             "uuid": "d39e9761-bbbc-4578-9ad9-c80b788a017a",
             "source": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json",
             "description": "NIST SP 800-53 Rev 5 controls satisfied (or planned) by the Acme Health intake service, each tagged with the SOC 2 Trust Services Criterion it supports.",
-            "remarks": "SOC 2 -> NIST 800-53 mapping used here (one representative control per criterion): CC6.1 -> sc-28 (encryption at rest), CC6.3 -> ac-6 (least privilege), CC6.6 -> sc-7 (boundary protection), CC6.7 -> sc-8 (transmission confidentiality), A1.2 -> cp-9 (system backup), CC7.2 -> si-4 (system monitoring). AICPA publishes no OSCAL catalog for the Trust Services Criteria, so NIST 800-53 Rev 5 is the catalog. Each pair was checked against the AICPA crosswalk 'Mapping: 2017 Trust Services Criteria to NIST 800-53' (2017 TSC with revised points of focus 2022, mapped to NIST 800-53 r5), which lists each of these controls under the corresponding criterion. That crosswalk is many-to-many: each criterion maps to further controls not selected here. Evidence objects live in an S3 Object Lock (GOVERNANCE, 90 days from 2026-09-18) vault, so they are protected until about 2026-12-17.",
             "links": [
               {
                 "rel": "reference",

@@ -1,4 +1,4 @@
-.PHONY: deploy plan test destroy fmt creds
+.PHONY: deploy plan test destroy fmt creds validate-oscal
 
 # Set AWS_PROFILE in your shell before running, or pass on the command line:
 #   make deploy AWS_PROFILE=my-sandbox
@@ -24,6 +24,9 @@ test: ## Smoke test the deployed API
 
 destroy: ## Tear it all down
 	@$(CREDS) && cd terraform && terraform destroy -auto-approve
+
+validate-oscal: ## Schema-validate the OSCAL files with trestle (no AWS needed)
+	@scripts/validate-oscal.sh
 
 fmt:
 	cd terraform && terraform fmt -recursive
