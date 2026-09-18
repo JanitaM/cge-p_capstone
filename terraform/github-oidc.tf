@@ -88,6 +88,7 @@ resource "aws_iam_policy" "grc_gate_plan" {
           "s3:ListAllMyBuckets",
           "dynamodb:DescribeTable",
           "dynamodb:DescribeContinuousBackups",
+          "dynamodb:DescribeTimeToLive",
           "dynamodb:ListTagsOfResource",
           "lambda:GetFunction*",
           "lambda:GetPolicy",
