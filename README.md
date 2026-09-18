@@ -1,20 +1,65 @@
-# cgep-app-starter
+# Acme Health GRC Capstone
 
-> Patient Intake API for "Acme Health". The deliberately-flawed workload your **CGE-P capstone** wraps with GRC controls.
+> Patient Intake API for "Acme Health", wrapped in four GRC layers. A fork of `cgep-app-starter` for the **CGE-P capstone**. Primary framework: **SOC 2**.
 
 ## What this is
 
-A minimal AWS workload: VPC, Lambda, API Gateway, DynamoDB, S3. It ingests patient intake submissions over HTTPS. Think of it as a system you have just inherited from an engineering team and been asked to make audit-defensible.
+A minimal AWS workload: VPC, Lambda, API Gateway, DynamoDB, S3. It ingests patient intake submissions over HTTPS. The starter shipped with eight known compliance gaps ([GAPS.md](GAPS.md)). This repo makes it audit-defensible with four layers:
 
-This repository ships **non-compliant on purpose**. Your job in the capstone is not to rewrite this app. Your job is to wrap it with the four CGE-P layers (Terraform GRC baseline, Rego policies, GitHub Actions evidence pipeline, OSCAL component) so the same workload becomes audit-defensible against HIPAA, SOC 2, and CMMC L2.
+1. **Terraform baseline** (`terraform/`): KMS key, Object Lock evidence vault, CloudTrail, and fixes for six gaps.
+2. **Rego policies** (`policies/`): five policies that block a change that brings a gap back.
+3. **Pipeline** (`.github/workflows/grc-gate.yml`): plan, policy check, apply, sign with Cosign, upload to the vault.
+4. **OSCAL** (`oscal/`): a component and profile tracing each control to a Terraform resource and to signed evidence.
+
+The reasoning, trade-offs and honest gaps are in [WRITEUP.md](WRITEUP.md).
+
+## Run the tests
+
+| Command | What it proves | Needs |
+|---|---|---|
+| `opa test ./policies` | The five policies pass their pass/fail tests | Nothing |
+| `make validate-oscal` | The OSCAL files are valid and the profile resolves against the NIST catalog | `trestle`, internet |
+| `make test` | The deployed API accepts an intake submission | AWS, workload deployed |
+
+`make test` stops working once the workload is destroyed (see the teardown plan in the write-up), so the first two always work.
+
+## Verify the evidence
+
+Every merge to `main` produces a signed bundle in the Object Lock vault. The vault is private, so its evidence for one run is pulled into [evidence/35371787746/](evidence/35371787746/) by `scripts/pull-evidence.sh`. That is the run the write-up and the OSCAL evidence links point to. To check it, no AWS needed:
+
+```bash
+scripts/verify-evidence.sh 35371787746
+```
+
+```
+PASS: SHA-256 matches the .sha256 file and receipt.json (147c19f2...)
+PASS: Cosign signature verifies (signer: https://github.com/JanitaM/cge-p_capstone/.github/workflows/grc-gate.yml@refs/heads/main)
+PASS: retention: Object Lock GOVERNANCE, retained until 2026-12-17T17:01:04.386000+00:00
+
+CHAIN INTACT for run 35371787746
+```
+
+The three checks:
+- **SHA-256:** the bundle's hash matches the `.sha256` file and `receipt.json`.
+- **Cosign:** the signature verifies against the exact workflow that signs (this repo's `grc-gate.yml` on `main`), through GitHub's OIDC identity and the public Sigstore log.
+- **Retention:** `retention.json` shows the bundle is under Object Lock until a date still in the future.
+
+Needs `cosign`, `jq` and `shasum`. The signature and the hash can be re-checked by anyone. `retention.json` is S3's own answer, saved when the bundle was pulled. The 90-day lock ends on 2026-12-17, after which the retention check fails by design. `test/verify_evidence.sh` shows the verifier also fails on a changed bundle, an expired retention date, and an unknown run.
+
+## Where the proof is
+
+- Green PR, gate passed and merged: [#12](https://github.com/JanitaM/cge-p_capstone/pull/12)
+- Red PR, gate blocked it (reintroduces GAP-01): [#13](https://github.com/JanitaM/cge-p_capstone/pull/13)
+- OSCAL: [component](oscal/components/acme-health-intake.json) and [profile](oscal/profiles/acme-health-soc2.json)
+- Pulled evidence: [evidence/35371787746/](evidence/35371787746/)
 
 ## The deploy gate
 
-If you cannot deploy this starter, you cannot pass the capstone. Real GRC engineers inherit working systems. Step zero is making the system run.
+The pipeline applies on merge to `main`. To deploy by hand you need your own AWS account, and the Terraform state backend in `terraform/main.tf` names this project's state bucket, so change that first.
 
 ```bash
-git clone https://github.com/GRCEngClub/cgep-app-starter
-cd cgep-app-starter
+git clone https://github.com/JanitaM/cge-p_capstone
+cd cge-p_capstone
 
 # Confirm you're authenticated to the right account:
 make creds AWS_PROFILE=<your-sandbox-profile>
@@ -38,43 +83,27 @@ Expected output of `make test`:
 
 When you're done exploring: `make destroy`.
 
-## What you build on top
-
-Fork the repo into your own `cgep-capstone` and add:
-
-1. **Layer 1 — GRC baseline (Terraform).** KMS keys, an S3 evidence vault with Object Lock, a CloudTrail trail. Bring this starter's data stores under your CMK.
-2. **Layer 2 — OPA policy suite (Rego).** Five or more policies that catch the named gaps in [GAPS.md](GAPS.md). Each policy maps to at least one control from the framework you choose.
-3. **Layer 3 — GitHub Actions pipeline.** Plan → Conftest gate → apply → Cosign sign → upload to vault.
-4. **Layer 4 — OSCAL component.** A `component-definition.json` describing how your governed system implements its controls.
-
-Full brief: `docs/labs/07_01_capstone_brief.md` in the course content repo.
-
-## Framework mapping is required
-
-Your capstone must declare a primary framework: **HIPAA Security Rule**, **SOC 2 Trust Services Criteria**, or **CMMC Level 2**. Every policy carries at least one control ID from your chosen framework. Your OSCAL component's `control-implementations` reference your framework's catalog.
-
-A starter mapping is in [FRAMEWORKS.md](FRAMEWORKS.md). It is not the only valid mapping. You're expected to defend yours.
-
 ## Cost
 
-Roughly $0 if destroyed within an hour. Lambda + API Gateway + DynamoDB + S3 are all pay-per-use, and an empty deployment generates no traffic. CloudTrail (which you add) costs cents.
+The base workload is roughly $0 if destroyed within an hour: Lambda, API Gateway, DynamoDB and S3 are pay-per-use. The baseline adds about $1 a month for the KMS key and about $7 a month for the CloudWatch Logs VPC endpoint, plus cents for CloudTrail and the evidence vault.
 
 ## Layout
 
 ```
-cgep-app-starter/
+.
 ├── README.md            # this file
+├── WRITEUP.md           # design reasoning, trade-offs, honest gaps
 ├── WORKLOAD.md          # what the API does
-├── GAPS.md              # the named flaws your policies must catch
+├── GAPS.md              # the eight named flaws
 ├── FRAMEWORKS.md        # HIPAA / SOC 2 / CMMC mapping primer
-├── Makefile             # make deploy | test | destroy
-├── terraform/
-│   ├── main.tf
-│   ├── variables.tf
-│   ├── outputs.tf
-│   └── lambda/handler.py
-└── test/
-    └── intake.sh
+├── Makefile             # make deploy | test | destroy | validate-oscal
+├── terraform/           # starter workload + GRC baseline
+├── policies/            # Rego policies and their tests
+├── oscal/               # component definition and profile
+├── evidence/            # pulled, signed evidence bundle(s)
+├── scripts/             # validate-oscal, pull-evidence, verify-evidence
+├── test/                # shell tests (intake, OIDC, state, OSCAL, evidence)
+└── .github/workflows/   # grc-gate.yml
 ```
 
 ## License
