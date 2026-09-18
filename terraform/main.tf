@@ -107,7 +107,7 @@ resource "aws_route_table_association" "public" {
 #         uploads-bucket-kms-encryption.tf.
 # GAP-03: bucket policy denying non-TLS requests — see
 #         uploads-bucket-policy.tf.
-# GAP-04: no versioning. PHI overwrites are unrecoverable.
+# GAP-04: versioning — see uploads-bucket-versioning.tf.
 #
 # Note: AWS now defaults new buckets to SSE-S3 + full public access block.
 # The "gaps" here are real residual gaps once those defaults are in place.
@@ -117,8 +117,7 @@ resource "aws_s3_bucket" "uploads" {
   bucket = "${local.name_prefix}-uploads-${local.suffix}"
 }
 
-# (Intentionally omitted: versioning, lifecycle. These are the gaps the
-#  learner closes.)
+# (Intentionally omitted: lifecycle rules — not part of a named gap.)
 
 ######################################################################
 # Lambda — the intake handler.
