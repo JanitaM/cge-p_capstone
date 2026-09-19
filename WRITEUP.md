@@ -2,7 +2,7 @@
 
 Acme Health has a small patient intake API on AWS. It works, but it was built with eight known
 compliance gaps (listed in [GAPS.md](GAPS.md)). My job was not to rebuild it. It was to make it
-defensible in an audit, and to make that provable on every code change.
+defensible in a SOC 2 audit, and to make that provable on every code change.
 
 I did this with four layers: Terraform fixes, Rego policies that block bad changes, a GitHub
 Actions pipeline that signs its evidence, and an OSCAL file that traces each control to that
@@ -18,6 +18,16 @@ I chose **SOC 2**, the security audit standard most software companies are asked
   pipeline that signs evidence on every push is exactly that kind of proof.
 - **The healthcare app is only an example.** The gaps and controls are the same for any
   workload. The point of this project is the evidence pipeline, not the patient data.
+
+**Why the OSCAL file cites NIST 800-53, not SOC 2.** OSCAL is a machine-readable format for
+describing controls, and it needs a catalog (a published list of controls) to point at. The
+AICPA, which writes SOC 2, publishes no OSCAL catalog for it, but NIST does for 800-53 Rev 5.
+So the file in `oscal/components/` uses the NIST catalog as its `source` and tags each control
+with the SOC 2 criterion it supports (the `soc2-criterion` property on every requirement, for
+example CC6.1). The pairs come from the AICPA's own published mapping of SOC 2 criteria to
+NIST 800-53, which is linked in the file. This is not a framework mismatch: SOC 2 is the
+framework I declared, and NIST 800-53 is only the catalog used to express it. Each criterion
+maps to several NIST controls, and I picked one representative control per criterion.
 
 ## Gap remediation
 
